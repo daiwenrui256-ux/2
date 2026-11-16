@@ -20,6 +20,15 @@ button { color: inherit; font: inherit; }
     #07060c;
 }
 #particleCanvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.tree-fallback { position: absolute; z-index: 2; top: 24%; left: 50%; width: min(70.72vw, 56.68vh, 684px); height: min(58vh, 700px); transform: translateX(-50%); opacity: .92; pointer-events: none; filter: drop-shadow(0 0 22px rgba(236,184,89,.16)); transition: opacity .8s, transform .8s; }
+.tree-fallback-star { position: absolute; z-index: 2; top: -17px; left: 50%; width: 19px; height: 19px; transform: translateX(-50%) rotate(45deg); background: #ffe59b; clip-path: polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); filter: drop-shadow(0 0 10px #ffc95b); animation: star-glow 1.8s ease-in-out infinite alternate; }
+.tree-tier { position: absolute; display: block; left: 50%; transform: translateX(-50%); clip-path: polygon(50% 0,59% 18%,55% 17%,68% 39%,62% 37%,78% 64%,70% 61%,100% 100%,0 100%,30% 61%,22% 64%,38% 37%,32% 39%,45% 17%,41% 18%); background-image: radial-gradient(circle, rgba(255,231,167,.98) 0 1.35px, transparent 2.5px), radial-gradient(circle, rgba(249,173,100,.95) 0 1.15px, transparent 2.4px), linear-gradient(105deg, rgba(18,48,36,.48), rgba(55,81,48,.42) 48%, rgba(14,39,31,.52)); background-size: 31px 29px, 43px 37px, 100% 100%; background-position: 0 0, 12px 8px, 0 0; box-shadow: 0 0 18px rgba(255,194,91,.25); animation: tree-glow 2.8s ease-in-out infinite alternate; }
+.tree-tier-top { top: 0; width: 39%; height: 39%; }
+.tree-tier-middle { top: 20%; width: 70%; height: 43%; animation-delay: -.7s; }
+.tree-tier-base { top: 40%; width: 100%; height: 50%; animation-delay: -1.3s; }
+.tree-trunk { position: absolute; left: 46%; bottom: 1%; width: 8%; height: 13%; border-radius: 3px 3px 0 0; background: linear-gradient(90deg,rgba(76,46,27,.5),rgba(196,137,65,.58),rgba(61,39,26,.55)); box-shadow: 0 0 16px rgba(248,185,91,.14); }
+@keyframes tree-glow { from { opacity: .7; } to { opacity: 1; } }
+@keyframes star-glow { from { opacity: .72; scale: .88; } to { opacity: 1; scale: 1.08; } }
 .vignette { position: absolute; inset: 0; z-index: 1; pointer-events: none; background: radial-gradient(ellipse at 50% 46%, transparent 28%, rgba(4,3,8,.1) 69%, rgba(3,2,6,.68) 100%); }
 .topbar { position: absolute; z-index: 5; top: max(25px, env(safe-area-inset-top)); left: clamp(24px, 5vw, 78px); right: clamp(24px, 5vw, 78px); display: flex; align-items: center; justify-content: space-between; }
 .edition { color: rgba(226,213,184,.47); font: 9px 'Cormorant Garamond', Georgia, serif; letter-spacing: .25em; }
@@ -60,6 +69,7 @@ button { color: inherit; font: inherit; }
 .gesture-guide { color: rgba(225,214,193,.55); font: 9px var(--chinese); letter-spacing: .05em; text-shadow: 0 1px 8px #07060c; text-align: center; }
 .scatter-button { position: absolute; top: 1px; left: calc(100% + 12px); white-space: nowrap; border: 0; color: rgba(228,208,169,.55); background: transparent; cursor: pointer; font: 9px var(--chinese); }
 .scatter-button span { color: #e8c36f; margin-left: 4px; }
+.scene.is-scattered .tree-fallback { opacity: .28; transform: translateX(-50%) scale(.97); }
 .gesture-status { position: absolute; z-index: 10; left: 50%; bottom: 116px; transform: translate(-50%,10px); opacity: 0; padding: 9px 14px; color: #f5e6bd; background: rgba(6,5,11,.83); border: 1px solid rgba(240,204,119,.28); font: 9px var(--chinese); letter-spacing: .06em; pointer-events: none; transition: opacity .2s, transform .2s; }
 .gesture-status.show { opacity: 1; transform: translate(-50%,0); }
 .photo-dialog-backdrop { position: absolute; z-index: 20; inset: 0; display: grid; place-items: center; padding: 7vh 8vw; background: rgba(4,3,8,.82); backdrop-filter: blur(12px); }
