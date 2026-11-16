@@ -24,10 +24,8 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v6
-      - name: Enable Pages
+      - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - name: Prepare site files
         run: |
           mkdir -p dist
