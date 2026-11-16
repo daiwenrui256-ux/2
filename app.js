@@ -26,8 +26,7 @@ const photoFiles = [
   '/assets/photos/photo-05.jpg', '/assets/photos/photo-06.jpg',
   '/assets/photos/photo-07.jpg', '/assets/photos/photo-08.jpg',
 ];
-const colors = ['#ffe4a0', '#ffcc72', '#f5ae59', '#fff0c6', '#f18383', '#d9a8e5', '#dbefdc'];
-const particleCount = 2800;
+const colors = ['#fff0c6', '#ffe19a', '#ffd06f', '#ffc05d', '#ffdf87', '#fff5d7', '#f8ad65', '#e9a0a0'];
 let width = 0;
 let height = 0;
 let pixelRatio = 1;
@@ -119,13 +118,13 @@ function setScattered(value) {
 }
 
 function shapePoint(particle) {
-  const treeHeight = Math.min(height * 0.66, 570);
-  const treeWidth = Math.min(width * 0.57, treeHeight * 0.82);
-  const top = height * 0.2;
+  const treeHeight = Math.min(height * 0.58, 520);
+  const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
+  const top = height * 0.24;
   const centerX = width * 0.5;
   const h = particle.h;
   const radius = (0.025 + h * 0.49) * treeWidth * particle.radial;
-  const angle = particle.angle + yaw + Math.sin(particle.phase) * 0.018;
+  const angle = particle.angle + (particle.spiral ? h * Math.PI * 12 : 0) + yaw + Math.sin(particle.phase) * 0.018;
   const x3 = Math.cos(angle) * radius;
   const z3 = Math.sin(angle) * radius;
   return { x: centerX + x3, y: top + h * treeHeight + z3 * treeWidth * 0.11, depth: z3 / Math.max(1, treeWidth) };
@@ -140,14 +139,18 @@ function randomCloudPoint(particle) {
 }
 function buildParticles() {
   particles = [];
+  const particleCount = Math.min(8200, Math.max(3800, Math.round(width * height / 190)));
   for (let i = 0; i < particleCount; i++) {
+    const h = Math.random();
+    const spiral = Math.random() < 0.48;
     const particle = {
-      h: Math.random(),
-      radial: Math.sqrt(Math.random()),
-      angle: Math.random() * Math.PI * 2,
+      h: h,
+      radial: spiral ? 0.84 + Math.random() * 0.16 : Math.sqrt(Math.random()),
+      angle: spiral ? Math.floor(Math.random() * 6) * Math.PI / 3 + (Math.random() - 0.5) * 0.12 : Math.random() * Math.PI * 2,
+      spiral: spiral,
       phase: Math.random() * Math.PI * 2,
-      size: 0.65 + Math.random() * 2.2,
-      shimmer: 0.45 + Math.random() * 0.55,
+      size: 1.05 + Math.random() * 2.5,
+      shimmer: 0.62 + Math.random() * 0.38,
       color: colors[Math.floor(Math.random() * colors.length)],
       x: 0, y: 0, vx: 0, vy: 0,
     };
@@ -181,6 +184,20 @@ function drawFrame(time) {
   glow.addColorStop(1, 'rgba(255,185,90,0)');
   context.fillStyle = glow;
   context.fillRect(0, 0, width, height);
+  drawTreeSilhouette();
+  drawTreeBoughs(time);
+  context.save();
+  if (!scattered) {
+    const treeHeight = Math.min(height * 0.58, 520);
+    const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
+    const top = height * 0.24;
+    context.beginPath();
+    context.moveTo(width * 0.5, top);
+    context.lineTo(width * 0.5 - treeWidth * 0.52, top + treeHeight);
+    context.lineTo(width * 0.5 + treeWidth * 0.52, top + treeHeight);
+    context.closePath();
+    context.clip();
+  }
   for (let i = 0; i < particles.length; i++) {
     const particle = particles[i];
     let target;
@@ -190,9 +207,9 @@ function drawFrame(time) {
     particle.vy *= .92;
     particle.x += particle.vx + (target.x - particle.x) * (scattered ? .055 : .072);
     particle.y += particle.vy + (target.y - particle.y) * (scattered ? .055 : .072);
-    const twinkle = .55 + .45 * Math.sin(time * .0017 + particle.phase);
+    const twinkle = .72 + .28 * Math.sin(time * .0017 + particle.phase);
     const radius = particle.size * (1 + Math.sin(time * .0012 + particle.phase) * .12);
-    context.globalAlpha = particle.shimmer * twinkle * (scattered ? .88 : .9);
+    context.globalAlpha = particle.shimmer * twinkle * (scattered ? .96 : 1);
     context.fillStyle = particle.color;
     context.shadowBlur = particle.size * (scattered ? 3.4 : 2.4);
     context.shadowColor = particle.color;
@@ -200,14 +217,82 @@ function drawFrame(time) {
     context.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
     context.fill();
   }
+  context.restore();
   context.globalAlpha = 1;
   context.shadowBlur = 0;
   drawTopStar();
   frameRequest = requestAnimationFrame(drawFrame);
 }
+function drawTreeSilhouette() {
+  const treeHeight = Math.min(height * 0.58, 520);
+  const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
+  const top = height * 0.24;
+  const centerX = width * 0.5;
+  const baseY = top + treeHeight;
+  const halfWidth = treeWidth * 0.52;
+  const foliage = context.createLinearGradient(centerX, top, centerX, baseY);
+  foliage.addColorStop(0, 'rgba(77, 91, 51, .24)');
+  foliage.addColorStop(0.58, 'rgba(45, 66, 42, .18)');
+  foliage.addColorStop(1, 'rgba(25, 39, 31, .12)');
+  context.save();
+  context.globalAlpha = scattered ? 0.08 : 1;
+  context.beginPath();
+  context.moveTo(centerX, top);
+  context.lineTo(centerX - halfWidth, baseY);
+  context.lineTo(centerX + halfWidth, baseY);
+  context.closePath();
+  context.fillStyle = foliage;
+  context.fill();
+  context.lineWidth = 1.2;
+  context.strokeStyle = 'rgba(255, 208, 119, .27)';
+  context.shadowBlur = 24;
+  context.shadowColor = 'rgba(250, 193, 95, .2)';
+  context.stroke();
+  context.restore();
+}
+function drawTreeBoughs(time) {
+  const treeHeight = Math.min(height * 0.58, 520);
+  const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
+  const top = height * 0.24;
+  const centerX = width * 0.5;
+  const treeAlpha = scattered ? 0.08 : 1;
+  context.save();
+  context.globalAlpha = treeAlpha;
+  for (let tier = 0; tier < 12; tier++) {
+    const h = 0.08 + tier * 0.078;
+    const radius = (0.025 + h * 0.49) * treeWidth * 0.94;
+    const rowY = top + h * treeHeight;
+    context.beginPath();
+    context.moveTo(centerX - radius, rowY + 7);
+    context.quadraticCurveTo(centerX, rowY - 7, centerX + radius, rowY + 7);
+    context.setLineDash([2, 11]);
+    context.lineWidth = 1.2;
+    context.strokeStyle = 'rgba(255, 207, 119, .34)';
+    context.shadowBlur = 8;
+    context.shadowColor = '#f6c66e';
+    context.stroke();
+    const bulbs = 10 + Math.round(h * 18);
+    for (let bulb = 0; bulb <= bulbs; bulb++) {
+      const t = bulb / bulbs;
+      const x = centerX - radius + radius * 2 * t;
+      const y = rowY + 7 - 14 * 4 * t * (1 - t);
+      const blink = 0.66 + 0.34 * Math.sin(time * 0.0015 + tier * 1.7 + bulb * 0.9);
+      context.globalAlpha = blink * 0.8 * treeAlpha;
+      context.fillStyle = bulb % 5 === 0 ? '#fff0bf' : '#ffd27a';
+      context.shadowBlur = 9;
+      context.beginPath();
+      context.arc(x, y, bulb % 3 === 0 ? 2.2 : 1.55, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+  context.setLineDash([]);
+  context.globalAlpha = 1;
+  context.shadowBlur = 0;
+  context.restore();
+}
 function drawTopStar() {
   const x = width * .5;
-  const y = height * .2 - 14;
+  const y = height * .24 - 14;
   const pulse = 1 + Math.sin(performance.now() * .002) * .12;
   context.save();
   context.translate(x, y);
