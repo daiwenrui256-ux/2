@@ -8,11 +8,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=tree-20261116-2" />
   </head>
   <body>
     <main class="scene" id="scene">
       <canvas id="particleCanvas" aria-label="由金色粒子组成的圣诞树"></canvas>
+      <div class="tree-fallback" aria-hidden="true">
+        <span class="tree-fallback-star"></span>
+        <span class="tree-tier tree-tier-top"></span>
+        <span class="tree-tier tree-tier-middle"></span>
+        <span class="tree-tier tree-tier-base"></span>
+        <span class="tree-trunk"></span>
+      </div>
       <div class="vignette" aria-hidden="true"></div>
       <header class="topbar">
         <div class="edition">WINTER MEMORIES <span>·</span> 2026</div>
@@ -43,7 +50,7 @@
           <span id="cameraLabel">开启手势互动</span>
         </button>
         <span class="gesture-guide" id="gestureGuide">张开手掌，粒子散开　·　握拳，粒子归树　·　捏合拖动照片</span>
-        <button class="scatter-button" id="scatterButton" type="button">轻触试试 <span>✦</span></button>
+        <button class="scatter-button" id="scatterButton" type="button">让照片散开 <span>✦</span></button>
       </div>
 
       <div class="gesture-status" id="gestureStatus" role="status" aria-live="polite"></div>
@@ -55,7 +62,7 @@
 
       <video class="music-source" id="musicSource" src="/assets/music-source.mp4" preload="metadata" playsinline loop aria-hidden="true"></video>
     </main>
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=tree-20261116-2"></script>
   </body>
 </html>
 
