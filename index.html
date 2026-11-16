@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#07060c" />
+    <title>Merry Christmas · 冬日记忆</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="scene" id="scene">
+      <canvas id="particleCanvas" aria-label="由金色粒子组成的圣诞树"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+      <header class="topbar">
+        <div class="edition">WINTER MEMORIES <span>·</span> 2026</div>
+        <button class="music-toggle" id="musicToggle" type="button" aria-pressed="false">
+          <span class="music-glyph" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span id="musicLabel">播放背景音乐</span>
+        </button>
+      </header>
+
+      <div class="title-block">
+        <p class="title-kicker">A TREE MADE OF YOUR MOMENTS</p>
+        <h1>MERRY CHRISTMAS</h1>
+        <p class="title-note">把想念的人，挂进这个冬天</p>
+      </div>
+
+      <div class="tree-ground" aria-hidden="true"></div>
+      <div class="photo-layer" id="photoLayer" aria-label="圣诞树上的照片"></div>
+      <div class="gesture-cursor" id="gestureCursor" aria-hidden="true"><span></span></div>
+
+      <div class="camera-preview" id="cameraPreview" hidden>
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <span class="camera-live"><i></i> 手势已连接</span>
+      </div>
+
+      <div class="bottom-controls">
+        <button class="camera-button" id="cameraButton" type="button">
+          <span class="camera-symbol" aria-hidden="true">◎</span>
+          <span id="cameraLabel">开启手势互动</span>
+        </button>
+        <span class="gesture-guide" id="gestureGuide">张开手掌，粒子散开　·　握拳，粒子归树　·　捏合拖动照片</span>
+        <button class="scatter-button" id="scatterButton" type="button">轻触试试 <span>✦</span></button>
+      </div>
+
+      <div class="gesture-status" id="gestureStatus" role="status" aria-live="polite"></div>
+
+      <div class="photo-dialog-backdrop" id="photoBackdrop" hidden>
+        <button class="dialog-close" id="photoClose" type="button" aria-label="关闭照片">×</button>
+        <img id="enlargedPhoto" alt="回忆照片" />
+      </div>
+
+      <video class="music-source" id="musicSource" src="/assets/music-source.mp4" preload="metadata" playsinline loop aria-hidden="true"></video>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
+
