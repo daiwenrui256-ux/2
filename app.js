@@ -2,6 +2,7 @@ const scene = document.querySelector('#scene');
 const canvas = document.querySelector('#particleCanvas');
 const context = canvas.getContext('2d', { alpha: true });
 const photoLayer = document.querySelector('#photoLayer');
+const scatterButton = document.querySelector('#scatterButton');
 const cameraButton = document.querySelector('#cameraButton');
 const cameraLabel = document.querySelector('#cameraLabel');
 const cameraVideo = document.querySelector('#cameraVideo');
@@ -99,6 +100,7 @@ function setScattered(value) {
   if (scattered === value) return;
   scattered = value;
   scene.classList.toggle('is-scattered', scattered);
+  scatterButton.innerHTML = scattered ? '回到圣诞树 <span>✦</span>' : '让照片散开 <span>✦</span>';
   if (scattered) {
     const radiusX = Math.min(39, Math.max(30, width / height * 25));
     photos.forEach(function(item, index) {
@@ -118,7 +120,7 @@ function setScattered(value) {
 }
 
 function shapePoint(particle) {
-  const treeHeight = Math.min(height * 0.58, 520);
+  const treeHeight = Math.min(height * 0.58, 700);
   const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
   const top = height * 0.24;
   const centerX = width * 0.5;
@@ -188,7 +190,7 @@ function drawFrame(time) {
   drawTreeBoughs(time);
   context.save();
   if (!scattered) {
-    const treeHeight = Math.min(height * 0.58, 520);
+    const treeHeight = Math.min(height * 0.58, 700);
     const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
     const top = height * 0.24;
     context.beginPath();
@@ -224,7 +226,7 @@ function drawFrame(time) {
   frameRequest = requestAnimationFrame(drawFrame);
 }
 function drawTreeSilhouette() {
-  const treeHeight = Math.min(height * 0.58, 520);
+  const treeHeight = Math.min(height * 0.58, 700);
   const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
   const top = height * 0.24;
   const centerX = width * 0.5;
@@ -251,7 +253,7 @@ function drawTreeSilhouette() {
   context.restore();
 }
 function drawTreeBoughs(time) {
-  const treeHeight = Math.min(height * 0.58, 520);
+  const treeHeight = Math.min(height * 0.58, 700);
   const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
   const top = height * 0.24;
   const centerX = width * 0.5;
@@ -441,7 +443,7 @@ function stopCamera() {
   cameraLabel.textContent = '开启手势互动';
 }
 cameraButton.addEventListener('click', function() { if (cameraStream) stopCamera(); else startCamera(); });
-document.querySelector('#scatterButton').addEventListener('click', function() { setScattered(!scattered); });
+scatterButton.addEventListener('click', function() { setScattered(!scattered); });
 document.querySelector('#photoClose').addEventListener('click', closePhoto);
 photoBackdrop.addEventListener('click', function(event) { if (event.target === photoBackdrop) closePhoto(); });
 window.addEventListener('keydown', function(event) { if (event.key === 'Escape') closePhoto(); });
