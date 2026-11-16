@@ -22,10 +22,10 @@ const initialSlots = [
   { x: 42, y: 65, tilt: 5 }, { x: 58, y: 65, tilt: -4 },
 ];
 const photoFiles = [
-  '/assets/photos/photo-01.jpg', '/assets/photos/photo-02.jpg',
-  '/assets/photos/photo-03.jpg', '/assets/photos/photo-04.jpg',
-  '/assets/photos/photo-05.jpg', '/assets/photos/photo-06.jpg',
-  '/assets/photos/photo-07.jpg', '/assets/photos/photo-08.jpg',
+  './assets/photos/photo-01.jpg', './assets/photos/photo-02.jpg',
+  './assets/photos/photo-03.jpg', './assets/photos/photo-04.jpg',
+  './assets/photos/photo-05.jpg', './assets/photos/photo-06.jpg',
+  './assets/photos/photo-07.jpg', './assets/photos/photo-08.jpg',
 ];
 const colors = ['#fff0c6', '#ffe19a', '#ffd06f', '#ffc05d', '#ffdf87', '#fff5d7', '#f8ad65', '#e9a0a0'];
 let width = 0;
