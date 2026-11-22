@@ -51,18 +51,19 @@ let previousFrameTime = 0;
 let pointerDown = null;
 let cameraStream = null;
 let handLandmarker = null;
-let frameRequest = 0;
+let renderRequest = 0;
+let handRequest = 0;
 let lastVideoTime = -1;
 let pinchTarget = null;
 let lastGesture = '';
 let noticeTimer = 0;
 let photoDrag = null;
 
-function notify(message) {
+function notify(message, duration) {
   status.textContent = message;
   status.classList.add('show');
   clearTimeout(noticeTimer);
-  noticeTimer = setTimeout(() => status.classList.remove('show'), 2100);
+  noticeTimer = setTimeout(() => status.classList.remove('show'), duration || 2100);
 }
 
 function createPhotoCard(source, index) {
@@ -114,22 +115,23 @@ function setScattered(value) {
   if (scattered === value) return;
   scattered = value;
   scene.classList.toggle('is-scattered', scattered);
-  scatterButton.innerHTML = scattered ? '回到圣诞树 <span>✦</span>' : '让照片散开 <span>✦</span>';
+  scatterButton.innerHTML = scattered ? '粒子与照片归树 <span>✦</span>' : '粒子与照片散开 <span>✦</span>';
   if (scattered) {
-    const radiusX = Math.min(39, Math.max(30, width / height * 25));
+    const radiusX = Math.min(43, Math.max(30, width / height * 28));
     photos.forEach(function(item, index) {
       const angle = -Math.PI / 2 + Math.PI * 2 * index / photos.length;
+      const radius = 0.9 + (index % 3) * 0.045;
       item.position = {
-        x: 50 + Math.cos(angle) * radiusX,
-        y: 52 + Math.sin(angle) * 32,
+        x: 50 + Math.cos(angle) * radiusX * radius,
+        y: 52 + Math.sin(angle) * 35 * radius,
         tilt: (index % 2 ? 1 : -1) * (4 + index % 4),
       };
       applyPhotoPosition(item);
     });
-    notify('粒子与照片，随手势散开');
+    notify('粒子与照片同时散开');
   } else {
     showTreePhotoPositions(true);
-    notify('照片回到圣诞树');
+    notify('粒子与照片回到圣诞树');
   }
 }
 
@@ -290,8 +292,9 @@ function drawFrame(time) {
     else target = shapePoint(particle);
     particle.vx *= .92;
     particle.vy *= .92;
-    particle.x += particle.vx + (target.x - particle.x) * (scattered ? .055 : .072);
-    particle.y += particle.vy + (target.y - particle.y) * (scattered ? .055 : .072);
+    const travel = 1 - Math.exp(-delta * 0.0033);
+    particle.x += particle.vx + (target.x - particle.x) * travel;
+    particle.y += particle.vy + (target.y - particle.y) * travel;
     const twinkle = .72 + .28 * Math.sin(time * .0017 + particle.phase);
     const radius = particle.size * (1 + Math.sin(time * .0012 + particle.phase) * .12);
     if (particle.glow) {
@@ -316,7 +319,7 @@ function drawFrame(time) {
   context.globalAlpha = 1;
   context.shadowBlur = 0;
   drawTopStar();
-  frameRequest = requestAnimationFrame(drawFrame);
+  renderRequest = requestAnimationFrame(drawFrame);
 }
 function drawTreeSilhouette() {
   const metrics = treeMetrics();
@@ -538,7 +541,7 @@ function nearestPhoto(x, y) {
   return bestDistance < 165 ? best : null;
 }
 function handFrame() {
-  if (!handLandmarker || cameraVideo.readyState < 2) { frameRequest = requestAnimationFrame(handFrame); return; }
+  if (!handLandmarker || cameraVideo.readyState < 2) { handRequest = requestAnimationFrame(handFrame); return; }
   if (cameraVideo.currentTime !== lastVideoTime) {
     lastVideoTime = cameraVideo.currentTime;
     const result = handLandmarker.detectForVideo(cameraVideo, performance.now());
@@ -575,19 +578,24 @@ function handFrame() {
       lastGesture = '';
     }
   }
-  frameRequest = requestAnimationFrame(handFrame);
+  handRequest = requestAnimationFrame(handFrame);
 }
 async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    notify('请通过 localhost 或 HTTPS 打开页面以使用摄像头');
+    notify(window.isSecureContext
+      ? '当前浏览器没有开放摄像头接口，请在 Chrome 或 Edge 中打开网页'
+      : '摄像头需要在 HTTPS 页面中使用，请用浏览器打开此网页', 6000);
     return;
   }
   cameraButton.disabled = true;
   cameraLabel.textContent = '正在连接摄像头…';
+  let cameraGranted = false;
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
+    cameraGranted = true;
     cameraVideo.srcObject = cameraStream;
     cameraPreview.hidden = false;
+    await cameraVideo.play();
     const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
     const files = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
     const options = { baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate: 'GPU' }, runningMode: 'VIDEO', numHands: 1 };
@@ -597,16 +605,27 @@ async function startCamera() {
     cameraButton.disabled = false;
     cameraLabel.textContent = '关闭手势互动';
     notify('张开手掌散开 · 握拳聚拢 · 捏合拖动照片');
-    frameRequest = requestAnimationFrame(handFrame);
+    handRequest = requestAnimationFrame(handFrame);
   } catch (error) {
     stopCamera();
     cameraButton.disabled = false;
     cameraLabel.textContent = '开启手势互动';
-    notify(error && error.name === 'NotAllowedError' ? '请允许浏览器访问摄像头' : '摄像头或手势组件未能启动，请检查网络');
+    if (!cameraGranted && error && error.name === 'NotAllowedError') {
+      notify('浏览器拦截了摄像头：点地址栏左侧图标，在“站点权限”里将摄像头改为允许，然后刷新', 8000);
+    } else if (!cameraGranted && error && error.name === 'NotFoundError') {
+      notify('没有检测到可用摄像头，请检查设备连接', 6000);
+    } else if (!cameraGranted && error && error.name === 'NotReadableError') {
+      notify('摄像头正在被其他应用占用，请先关闭其他视频应用', 6000);
+    } else if (cameraGranted) {
+      notify('摄像头已授权，但手势组件没有加载成功；请检查网络后重试', 6500);
+    } else {
+      notify('摄像头启动失败：请在浏览器站点设置中允许摄像头，再重试', 6500);
+    }
   }
 }
 function stopCamera() {
-  cancelAnimationFrame(frameRequest);
+  cancelAnimationFrame(handRequest);
+  handRequest = 0;
   if (handLandmarker) handLandmarker.close();
   handLandmarker = null;
   if (cameraStream) cameraStream.getTracks().forEach(function(track) { track.stop(); });
