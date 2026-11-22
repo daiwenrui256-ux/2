@@ -1,6 +1,6 @@
 name: Deploy Christmas site to GitHub Pages
 
-# Publish the latest particle, photo, and camera updates from the site branch.
+# Publish the performance-tuned particle and camera build from the site branch.
 
 on:
   push:
