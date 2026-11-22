@@ -56,6 +56,7 @@ let renderRequest = 0;
 let handRequest = 0;
 let lastVideoTime = -1;
 let pinchTarget = null;
+let suppressPinchUntilRelease = false;
 let lastGesture = '';
 let noticeTimer = 0;
 let photoDrag = null;
@@ -562,30 +563,44 @@ function handFrame() {
       cursor.style.left = (x - rect.left) + 'px';
       cursor.style.top = (y - rect.top) + 'px';
       const gesture = readGesture(hand);
-      if (gesture !== lastGesture) {
-        if (gesture === 'open') {
-          if (pinchTarget) {
-            pinchTarget.card.classList.remove('dragging');
-            openPhoto(pinchTarget);
-            pinchTarget = null;
-            notify('照片已放大');
-          } else setScattered(true);
+      const fingerGap = distance(hand[4], hand[8]);
+      if (!photoBackdrop.hidden) {
+        if (fingerGap < .065) {
+          closePhoto();
+          suppressPinchUntilRelease = true;
+          lastGesture = 'pinch';
+          notify('照片已缩小');
         }
-        if (gesture === 'fist') setScattered(false);
-        lastGesture = gesture;
-      }
-      if (gesture === 'pinch') {
-        if (!pinchTarget) {
-          const target = nearestPhoto(x, y);
-          if (target) pinchTarget = target;
+      } else if (suppressPinchUntilRelease) {
+        if (fingerGap > .14) {
+          suppressPinchUntilRelease = false;
+          lastGesture = gesture;
         }
-        if (pinchTarget) {
-          pinchTarget.card.classList.add('dragging');
-          movePhotoToPoint(pinchTarget, x, y);
-        }
-      } else if (pinchTarget) {
+      } else if (pinchTarget && fingerGap > .14) {
         pinchTarget.card.classList.remove('dragging');
-        if (gesture === 'fist') pinchTarget = null;
+        openPhoto(pinchTarget);
+        pinchTarget = null;
+        lastGesture = 'spread';
+        notify('照片已放大');
+      } else {
+        if (gesture !== lastGesture) {
+          if (gesture === 'open') setScattered(true);
+          if (gesture === 'fist') setScattered(false);
+          lastGesture = gesture;
+        }
+        if (gesture === 'pinch') {
+          if (!pinchTarget) {
+            const target = nearestPhoto(x, y);
+            if (target) pinchTarget = target;
+          }
+          if (pinchTarget) {
+            pinchTarget.card.classList.add('dragging');
+            movePhotoToPoint(pinchTarget, x, y);
+          }
+        } else if (pinchTarget) {
+          pinchTarget.card.classList.remove('dragging');
+          if (gesture === 'fist') pinchTarget = null;
+        }
       }
     } else {
       cursor.style.display = 'none';
@@ -619,7 +634,7 @@ async function startCamera() {
     cameraButton.classList.add('is-on');
     cameraButton.disabled = false;
     cameraLabel.textContent = '关闭手势互动';
-    notify('张开手掌散开 · 握拳聚拢 · 捏合拖动照片');
+    notify('手掌张开散开 · 握拳聚拢 · 捏合照片，再张开两指放大，再捏合收起');
     handRequest = requestAnimationFrame(handFrame);
   } catch (error) {
     stopCamera();
@@ -649,6 +664,7 @@ function stopCamera() {
   cameraPreview.hidden = true;
   cursor.style.display = 'none';
   pinchTarget = null;
+  suppressPinchUntilRelease = false;
   lastGesture = '';
   cameraButton.classList.remove('is-on');
   cameraLabel.textContent = '开启手势互动';
