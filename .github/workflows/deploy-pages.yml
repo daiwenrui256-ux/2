@@ -1,6 +1,6 @@
 name: Deploy Christmas site to GitHub Pages
 
-# Pull the current interactive tree from its dedicated source branch.
+# Publish the latest particle, photo, and camera updates from the site branch.
 
 on:
   push:
