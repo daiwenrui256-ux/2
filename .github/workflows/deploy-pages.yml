@@ -1,6 +1,6 @@
 name: Deploy Christmas site to GitHub Pages
 
-# Publish two-finger photo zoom and pinch-to-close gestures.
+# Publish two-finger photo zoom and single-finger tree rotation.
 
 on:
   push:
