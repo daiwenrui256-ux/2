@@ -48,6 +48,7 @@ let zoom = 1;
 let rotationPaused = false;
 let hudHidden = false;
 let previousFrameTime = 0;
+let lastDetectionTime = 0;
 let pointerDown = null;
 let cameraStream = null;
 let handLandmarker = null;
@@ -195,7 +196,10 @@ function randomCloudPoint(particle) {
 }
 function buildParticles() {
   particles = [];
-  const particleCount = Math.min(8200, Math.max(3800, Math.round(width * height / 190)));
+  const cores = navigator.hardwareConcurrency || 4;
+  const memory = navigator.deviceMemory || 4;
+  const particleLimit = cores <= 4 || memory <= 4 ? 1500 : cores <= 8 || memory <= 8 ? 2200 : 3000;
+  const particleCount = Math.min(particleLimit, Math.max(900, Math.round(width * height / 520)));
   for (let i = 0; i < particleCount; i++) {
     const h = Math.random();
     const spiral = Math.random() < 0.48;
@@ -210,7 +214,7 @@ function buildParticles() {
       color: Math.random() < 0.095
         ? ornamentColors[Math.floor(Math.random() * ornamentColors.length)]
         : colorAtHeight(h, Math.round((Math.random() - 0.5) * 20)),
-      glow: Math.random() < 0.16,
+      glow: Math.random() < 0.07,
       x: 0, y: 0, vx: 0, vy: 0,
     };
     const point = shapePoint(particle);
@@ -223,7 +227,10 @@ function resizeCanvas() {
   const rect = scene.getBoundingClientRect();
   width = rect.width;
   height = rect.height;
-  pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  const cores = navigator.hardwareConcurrency || 4;
+  const memory = navigator.deviceMemory || 4;
+  const devicePixelCap = cores <= 4 || memory <= 4 ? 1.1 : 1.35;
+  pixelRatio = Math.min(window.devicePixelRatio || 1, devicePixelCap);
   canvas.width = Math.round(width * pixelRatio);
   canvas.height = Math.round(height * pixelRatio);
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -238,7 +245,7 @@ function resizeCanvas() {
   if (!scattered) showTreePhotoPositions(false);
 }
 function buildSkyStars() {
-  const starCount = Math.max(150, Math.min(520, Math.round(width * height / 5200)));
+  const starCount = Math.max(90, Math.min(240, Math.round(width * height / 9000)));
   skyStars = Array.from({ length: starCount }, function() {
     return { x: Math.random() * width, y: Math.random() * height, size: 0.35 + Math.random() * 1.25, phase: Math.random() * Math.PI * 2 };
   });
@@ -256,8 +263,11 @@ function drawSkyStars(time) {
   context.restore();
 }
 function drawFrame(time) {
-  if (!previousFrameTime) previousFrameTime = time;
-  const delta = Math.min(40, time - previousFrameTime);
+  if (previousFrameTime && time - previousFrameTime < 32) {
+    renderRequest = requestAnimationFrame(drawFrame);
+    return;
+  }
+  const delta = previousFrameTime ? Math.min(50, time - previousFrameTime) : 16;
   previousFrameTime = time;
   if (!rotationPaused && !pointerDown && !scattered) yaw += delta * 0.000065;
   context.clearRect(0, 0, width, height);
@@ -285,6 +295,7 @@ function drawFrame(time) {
     context.clip();
   }
   context.globalCompositeOperation = 'lighter';
+  const travel = 1 - Math.exp(-delta * 0.0033);
   for (let i = 0; i < particles.length; i++) {
     const particle = particles[i];
     let target;
@@ -292,7 +303,6 @@ function drawFrame(time) {
     else target = shapePoint(particle);
     particle.vx *= .92;
     particle.vy *= .92;
-    const travel = 1 - Math.exp(-delta * 0.0033);
     particle.x += particle.vx + (target.x - particle.x) * travel;
     particle.y += particle.vy + (target.y - particle.y) * travel;
     const twinkle = .72 + .28 * Math.sin(time * .0017 + particle.phase);
@@ -300,16 +310,12 @@ function drawFrame(time) {
     if (particle.glow) {
       context.globalAlpha = particle.shimmer * twinkle * 0.18;
       context.fillStyle = particle.color;
-      context.shadowBlur = particle.size * 8;
-      context.shadowColor = particle.color;
       context.beginPath();
       context.arc(particle.x, particle.y, radius * 2.3, 0, Math.PI * 2);
       context.fill();
     }
     context.globalAlpha = particle.shimmer * twinkle * (scattered ? .96 : 1);
     context.fillStyle = particle.color;
-    context.shadowBlur = particle.size * (scattered ? 4 : 3.1);
-    context.shadowColor = particle.color;
     context.beginPath();
     context.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
     context.fill();
@@ -346,8 +352,8 @@ function drawTreeSilhouette() {
   context.fill();
   context.lineWidth = 1.2;
   context.strokeStyle = 'rgba(108, 223, 216, .38)';
-  context.shadowBlur = 28;
-  context.shadowColor = 'rgba(94, 206, 228, .3)';
+  context.shadowBlur = 8;
+  context.shadowColor = 'rgba(94, 206, 228, .18)';
   context.stroke();
   const trunkWidth = Math.max(12, treeWidth * 0.082);
   const trunkHeight = treeHeight * 0.17;
@@ -358,8 +364,8 @@ function drawTreeSilhouette() {
   trunk.addColorStop(0.68, 'rgba(64, 208, 205, .72)');
   trunk.addColorStop(1, 'rgba(35, 122, 80, .7)');
   context.fillStyle = trunk;
-  context.shadowBlur = 20;
-  context.shadowColor = 'rgba(112, 220, 221, .44)';
+  context.shadowBlur = 7;
+  context.shadowColor = 'rgba(112, 220, 221, .3)';
   context.fillRect(centerX - trunkWidth * 0.5, trunkTop, trunkWidth, trunkHeight);
   context.restore();
 }
@@ -382,7 +388,7 @@ function drawTreeBoughs(time) {
     context.globalAlpha = treeAlpha * 0.42 * blink;
     context.strokeStyle = color;
     context.shadowColor = color;
-    context.shadowBlur = 9;
+    context.shadowBlur = 0;
     context.lineWidth = Math.max(1.25, 3.3 - tier * 0.18);
     for (const side of [-1, 1]) {
       context.beginPath();
@@ -542,9 +548,11 @@ function nearestPhoto(x, y) {
 }
 function handFrame() {
   if (!handLandmarker || cameraVideo.readyState < 2) { handRequest = requestAnimationFrame(handFrame); return; }
-  if (cameraVideo.currentTime !== lastVideoTime) {
+  const detectionTime = performance.now();
+  if (cameraVideo.currentTime !== lastVideoTime && detectionTime - lastDetectionTime >= 66) {
     lastVideoTime = cameraVideo.currentTime;
-    const result = handLandmarker.detectForVideo(cameraVideo, performance.now());
+    lastDetectionTime = detectionTime;
+    const result = handLandmarker.detectForVideo(cameraVideo, detectionTime);
     const hand = result.landmarks && result.landmarks[0];
     if (hand) {
       const rect = scene.getBoundingClientRect();
@@ -591,7 +599,7 @@ async function startCamera() {
   cameraLabel.textContent = '正在连接摄像头…';
   let cameraGranted = false;
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 }, audio: false });
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 480, height: 360 }, audio: false });
     cameraGranted = true;
     cameraVideo.srcObject = cameraStream;
     cameraPreview.hidden = false;
