@@ -1,6 +1,6 @@
 name: Deploy Christmas site to GitHub Pages
 
-# Publish the buffered pinch-to-open photo zoom gesture.
+# Publish two-finger photo zoom and pinch-to-close gestures.
 
 on:
   push:
