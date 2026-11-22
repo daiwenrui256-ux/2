@@ -1,6 +1,6 @@
 name: Deploy Christmas site to GitHub Pages
 
-# Publish the performance-tuned site with hand-gesture photo zoom.
+# Publish the photo zoom gesture with a cache-busted script URL.
 
 on:
   push:
