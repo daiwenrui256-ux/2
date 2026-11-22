@@ -27,13 +27,27 @@ const photoFiles = [
   './assets/photos/photo-05.jpg', './assets/photos/photo-06.jpg',
   './assets/photos/photo-07.jpg', './assets/photos/photo-08.jpg',
 ];
-const colors = ['#fff0c6', '#ffe19a', '#ffd06f', '#ffc05d', '#ffdf87', '#fff5d7', '#f8ad65', '#e9a0a0'];
+const foliageStops = [
+  { at: 0, color: [255, 91, 177] },
+  { at: 0.2, color: [166, 92, 227] },
+  { at: 0.42, color: [85, 139, 238] },
+  { at: 0.61, color: [52, 205, 217] },
+  { at: 0.8, color: [45, 194, 122] },
+  { at: 1, color: [10, 65, 43] },
+];
+const ornamentColors = ['#fff1ca', '#ffd275', '#ff719f', '#9fe8ff', '#e6b0ff'];
 let width = 0;
 let height = 0;
 let pixelRatio = 1;
 let particles = [];
+let skyStars = [];
 let scattered = false;
 let yaw = 0;
+let pitch = 0;
+let zoom = 1;
+let rotationPaused = false;
+let hudHidden = false;
+let previousFrameTime = 0;
 let pointerDown = null;
 let cameraStream = null;
 let handLandmarker = null;
@@ -119,17 +133,55 @@ function setScattered(value) {
   }
 }
 
-function shapePoint(particle) {
+function treeMetrics() {
   const treeHeight = Math.min(height * 0.58, 700);
-  const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
-  const top = height * 0.24;
-  const centerX = width * 0.5;
+  return {
+    treeHeight: treeHeight,
+    treeWidth: Math.min(width * 0.68, treeHeight * 0.94),
+    top: height * 0.24,
+    centerX: width * 0.5,
+  };
+}
+function colorAtHeight(value, variation) {
+  const h = Math.max(0, Math.min(1, value));
+  let upper = foliageStops[foliageStops.length - 1];
+  let lower = foliageStops[0];
+  for (let i = 0; i < foliageStops.length - 1; i++) {
+    if (h >= foliageStops[i].at && h <= foliageStops[i + 1].at) {
+      lower = foliageStops[i];
+      upper = foliageStops[i + 1];
+      break;
+    }
+  }
+  const amount = (h - lower.at) / Math.max(0.0001, upper.at - lower.at);
+  const rgb = lower.color.map(function(channel, index) {
+    return Math.max(0, Math.min(255, Math.round(channel + (upper.color[index] - channel) * amount + (variation || 0))));
+  });
+  return 'rgb(' + rgb.join(',') + ')';
+}
+function shapePoint(particle) {
+  const metrics = treeMetrics();
+  const treeHeight = metrics.treeHeight;
+  const treeWidth = metrics.treeWidth;
+  const top = metrics.top;
+  const centerX = metrics.centerX;
   const h = particle.h;
-  const radius = (0.025 + h * 0.49) * treeWidth * particle.radial;
-  const angle = particle.angle + (particle.spiral ? h * Math.PI * 12 : 0) + yaw + Math.sin(particle.phase) * 0.018;
+  const branchWave = Math.sin((h * 7 % 1) * Math.PI);
+  const radius = (0.025 + h * 0.47 + branchWave * 0.028) * treeWidth * particle.radial;
+  const angle = particle.angle + (particle.spiral ? h * Math.PI * 12 : 0) + Math.sin(particle.phase) * 0.018;
   const x3 = Math.cos(angle) * radius;
   const z3 = Math.sin(angle) * radius;
-  return { x: centerX + x3, y: top + h * treeHeight + z3 * treeWidth * 0.11, depth: z3 / Math.max(1, treeWidth) };
+  const turnedX = Math.cos(yaw) * x3 - Math.sin(yaw) * z3;
+  const turnedZ = Math.sin(yaw) * x3 + Math.cos(yaw) * z3;
+  const vertical = (h - 0.5) * treeHeight;
+  const pitchedY = vertical * Math.cos(pitch) - turnedZ * Math.sin(pitch);
+  const depth = vertical * Math.sin(pitch) + turnedZ * Math.cos(pitch);
+  const perspective = zoom * (1 + depth / Math.max(1, treeWidth * 2.8));
+  return {
+    x: centerX + turnedX * perspective,
+    y: top + treeHeight * 0.5 + pitchedY * perspective,
+    depth: depth / Math.max(1, treeWidth),
+  };
 }
 function randomCloudPoint(particle) {
   const angle = particle.angle * 1.7 + particle.phase;
@@ -153,7 +205,10 @@ function buildParticles() {
       phase: Math.random() * Math.PI * 2,
       size: 1.05 + Math.random() * 2.5,
       shimmer: 0.62 + Math.random() * 0.38,
-      color: colors[Math.floor(Math.random() * colors.length)],
+      color: Math.random() < 0.095
+        ? ornamentColors[Math.floor(Math.random() * ornamentColors.length)]
+        : colorAtHeight(h, Math.round((Math.random() - 0.5) * 20)),
+      glow: Math.random() < 0.16,
       x: 0, y: 0, vx: 0, vy: 0,
     };
     const point = shapePoint(particle);
@@ -170,6 +225,7 @@ function resizeCanvas() {
   canvas.width = Math.round(width * pixelRatio);
   canvas.height = Math.round(height * pixelRatio);
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  buildSkyStars();
   if (particles.length) {
     particles.forEach(function(particle) {
       const point = scattered ? randomCloudPoint(particle) : shapePoint(particle);
@@ -179,27 +235,54 @@ function resizeCanvas() {
   } else buildParticles();
   if (!scattered) showTreePhotoPositions(false);
 }
+function buildSkyStars() {
+  const starCount = Math.max(150, Math.min(520, Math.round(width * height / 5200)));
+  skyStars = Array.from({ length: starCount }, function() {
+    return { x: Math.random() * width, y: Math.random() * height, size: 0.35 + Math.random() * 1.25, phase: Math.random() * Math.PI * 2 };
+  });
+}
+function drawSkyStars(time) {
+  context.save();
+  context.fillStyle = '#dce7ff';
+  skyStars.forEach(function(star) {
+    const shimmer = 0.22 + (0.68 + 0.32 * Math.sin(time * 0.0007 + star.phase)) * 0.58;
+    context.globalAlpha = shimmer;
+    context.beginPath();
+    context.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+    context.fill();
+  });
+  context.restore();
+}
 function drawFrame(time) {
+  if (!previousFrameTime) previousFrameTime = time;
+  const delta = Math.min(40, time - previousFrameTime);
+  previousFrameTime = time;
+  if (!rotationPaused && !pointerDown && !scattered) yaw += delta * 0.000065;
   context.clearRect(0, 0, width, height);
+  drawSkyStars(time);
   const glow = context.createRadialGradient(width * .5, height * .58, 10, width * .5, height * .58, Math.min(width, height) * .42);
-  glow.addColorStop(0, 'rgba(255,185,90,.025)');
-  glow.addColorStop(1, 'rgba(255,185,90,0)');
+  glow.addColorStop(0, 'rgba(86,224,207,.065)');
+  glow.addColorStop(0.45, 'rgba(143,88,222,.04)');
+  glow.addColorStop(1, 'rgba(255,108,187,0)');
   context.fillStyle = glow;
   context.fillRect(0, 0, width, height);
   drawTreeSilhouette();
   drawTreeBoughs(time);
   context.save();
   if (!scattered) {
-    const treeHeight = Math.min(height * 0.58, 700);
-    const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
-    const top = height * 0.24;
+    const metrics = treeMetrics();
+    const treeHeight = metrics.treeHeight;
+    const treeWidth = metrics.treeWidth;
+    const top = metrics.top;
+    const centerX = metrics.centerX;
     context.beginPath();
-    context.moveTo(width * 0.5, top);
-    context.lineTo(width * 0.5 - treeWidth * 0.52, top + treeHeight);
-    context.lineTo(width * 0.5 + treeWidth * 0.52, top + treeHeight);
+    context.moveTo(centerX, top);
+    context.lineTo(centerX - treeWidth * 0.52, top + treeHeight);
+    context.lineTo(centerX + treeWidth * 0.52, top + treeHeight);
     context.closePath();
     context.clip();
   }
+  context.globalCompositeOperation = 'lighter';
   for (let i = 0; i < particles.length; i++) {
     const particle = particles[i];
     let target;
@@ -211,31 +294,44 @@ function drawFrame(time) {
     particle.y += particle.vy + (target.y - particle.y) * (scattered ? .055 : .072);
     const twinkle = .72 + .28 * Math.sin(time * .0017 + particle.phase);
     const radius = particle.size * (1 + Math.sin(time * .0012 + particle.phase) * .12);
+    if (particle.glow) {
+      context.globalAlpha = particle.shimmer * twinkle * 0.18;
+      context.fillStyle = particle.color;
+      context.shadowBlur = particle.size * 8;
+      context.shadowColor = particle.color;
+      context.beginPath();
+      context.arc(particle.x, particle.y, radius * 2.3, 0, Math.PI * 2);
+      context.fill();
+    }
     context.globalAlpha = particle.shimmer * twinkle * (scattered ? .96 : 1);
     context.fillStyle = particle.color;
-    context.shadowBlur = particle.size * (scattered ? 3.4 : 2.4);
+    context.shadowBlur = particle.size * (scattered ? 4 : 3.1);
     context.shadowColor = particle.color;
     context.beginPath();
     context.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
     context.fill();
   }
   context.restore();
+  context.globalCompositeOperation = 'source-over';
   context.globalAlpha = 1;
   context.shadowBlur = 0;
   drawTopStar();
   frameRequest = requestAnimationFrame(drawFrame);
 }
 function drawTreeSilhouette() {
-  const treeHeight = Math.min(height * 0.58, 700);
-  const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
-  const top = height * 0.24;
-  const centerX = width * 0.5;
+  const metrics = treeMetrics();
+  const treeHeight = metrics.treeHeight;
+  const treeWidth = metrics.treeWidth;
+  const top = metrics.top;
+  const centerX = metrics.centerX;
   const baseY = top + treeHeight;
   const halfWidth = treeWidth * 0.52;
   const foliage = context.createLinearGradient(centerX, top, centerX, baseY);
-  foliage.addColorStop(0, 'rgba(77, 91, 51, .24)');
-  foliage.addColorStop(0.58, 'rgba(45, 66, 42, .18)');
-  foliage.addColorStop(1, 'rgba(25, 39, 31, .12)');
+  foliage.addColorStop(0, 'rgba(255, 88, 181, .16)');
+  foliage.addColorStop(0.22, 'rgba(160, 92, 221, .17)');
+  foliage.addColorStop(0.46, 'rgba(67, 155, 222, .15)');
+  foliage.addColorStop(0.7, 'rgba(37, 189, 142, .16)');
+  foliage.addColorStop(1, 'rgba(14, 69, 44, .24)');
   context.save();
   context.globalAlpha = scattered ? 0.08 : 1;
   context.beginPath();
@@ -246,64 +342,145 @@ function drawTreeSilhouette() {
   context.fillStyle = foliage;
   context.fill();
   context.lineWidth = 1.2;
-  context.strokeStyle = 'rgba(255, 208, 119, .27)';
-  context.shadowBlur = 24;
-  context.shadowColor = 'rgba(250, 193, 95, .2)';
+  context.strokeStyle = 'rgba(108, 223, 216, .38)';
+  context.shadowBlur = 28;
+  context.shadowColor = 'rgba(94, 206, 228, .3)';
   context.stroke();
+  const trunkWidth = Math.max(12, treeWidth * 0.082);
+  const trunkHeight = treeHeight * 0.17;
+  const trunkTop = baseY - trunkHeight * 0.92;
+  const trunk = context.createLinearGradient(centerX - trunkWidth * 0.5, trunkTop, centerX + trunkWidth * 0.5, baseY);
+  trunk.addColorStop(0, 'rgba(255, 96, 183, .7)');
+  trunk.addColorStop(0.34, 'rgba(150, 115, 240, .66)');
+  trunk.addColorStop(0.68, 'rgba(64, 208, 205, .72)');
+  trunk.addColorStop(1, 'rgba(35, 122, 80, .7)');
+  context.fillStyle = trunk;
+  context.shadowBlur = 20;
+  context.shadowColor = 'rgba(112, 220, 221, .44)';
+  context.fillRect(centerX - trunkWidth * 0.5, trunkTop, trunkWidth, trunkHeight);
   context.restore();
 }
 function drawTreeBoughs(time) {
-  const treeHeight = Math.min(height * 0.58, 700);
-  const treeWidth = Math.min(width * 0.68, treeHeight * 0.94);
-  const top = height * 0.24;
-  const centerX = width * 0.5;
+  const metrics = treeMetrics();
+  const treeHeight = metrics.treeHeight;
+  const treeWidth = metrics.treeWidth;
+  const top = metrics.top;
+  const centerX = metrics.centerX;
   const treeAlpha = scattered ? 0.08 : 1;
   context.save();
-  context.globalAlpha = treeAlpha;
-  for (let tier = 0; tier < 12; tier++) {
-    const h = 0.08 + tier * 0.078;
-    const radius = (0.025 + h * 0.49) * treeWidth * 0.94;
+  context.globalAlpha = treeAlpha * 0.78;
+  context.lineCap = 'round';
+  for (let tier = 0; tier < 8; tier++) {
+    const h = 0.11 + tier * 0.112;
+    const radius = (0.035 + h * 0.47) * treeWidth;
     const rowY = top + h * treeHeight;
-    context.beginPath();
-    context.moveTo(centerX - radius, rowY + 7);
-    context.quadraticCurveTo(centerX, rowY - 7, centerX + radius, rowY + 7);
-    context.setLineDash([2, 11]);
-    context.lineWidth = 1.2;
-    context.strokeStyle = 'rgba(255, 207, 119, .34)';
-    context.shadowBlur = 8;
-    context.shadowColor = '#f6c66e';
-    context.stroke();
-    const bulbs = 10 + Math.round(h * 18);
-    for (let bulb = 0; bulb <= bulbs; bulb++) {
-      const t = bulb / bulbs;
-      const x = centerX - radius + radius * 2 * t;
-      const y = rowY + 7 - 14 * 4 * t * (1 - t);
-      const blink = 0.66 + 0.34 * Math.sin(time * 0.0015 + tier * 1.7 + bulb * 0.9);
-      context.globalAlpha = blink * 0.8 * treeAlpha;
-      context.fillStyle = bulb % 5 === 0 ? '#fff0bf' : '#ffd27a';
-      context.shadowBlur = 9;
+    const color = colorAtHeight(h + 0.04, 7);
+    const blink = 0.72 + 0.28 * Math.sin(time * 0.001 + tier * 0.9);
+    context.globalAlpha = treeAlpha * 0.42 * blink;
+    context.strokeStyle = color;
+    context.shadowColor = color;
+    context.shadowBlur = 9;
+    context.lineWidth = Math.max(1.25, 3.3 - tier * 0.18);
+    for (const side of [-1, 1]) {
       context.beginPath();
-      context.arc(x, y, bulb % 3 === 0 ? 2.2 : 1.55, 0, Math.PI * 2);
-      context.fill();
+      context.moveTo(centerX, rowY - 4);
+      context.quadraticCurveTo(centerX + side * radius * 0.46, rowY + 5, centerX + side * radius, rowY + 23);
+      context.stroke();
+      for (let sprig = 1; sprig <= 5; sprig++) {
+        const t = sprig / 6;
+        const branchX = centerX + side * radius * t;
+        const branchY = rowY + 3 + t * 15;
+        context.beginPath();
+        context.moveTo(branchX, branchY);
+        context.quadraticCurveTo(branchX + side * 7, branchY + 2, branchX + side * 12, branchY + 10);
+        context.stroke();
+      }
     }
   }
-  context.setLineDash([]);
-  context.globalAlpha = 1;
-  context.shadowBlur = 0;
   context.restore();
 }
 function drawTopStar() {
-  const x = width * .5;
-  const y = height * .24 - 14;
+  const metrics = treeMetrics();
+  const x = metrics.centerX;
+  const y = metrics.top - 12;
   const pulse = 1 + Math.sin(performance.now() * .002) * .12;
   context.save();
   context.translate(x, y);
-  context.rotate(Math.PI / 4);
-  context.shadowBlur = 18;
-  context.shadowColor = '#ffd77a';
-  context.fillStyle = '#ffe293';
-  context.fillRect(-4 * pulse, -4 * pulse, 8 * pulse, 8 * pulse);
+  context.scale(pulse, pulse);
+  context.globalAlpha = scattered ? 0.12 : 1;
+  context.shadowBlur = 31;
+  context.shadowColor = '#ff62bd';
+  context.fillStyle = '#ff8bce';
+  context.beginPath();
+  context.moveTo(0, 10);
+  context.bezierCurveTo(-4, 7, -15, 0, -14, -8);
+  context.bezierCurveTo(-13, -17, -3, -17, 0, -9);
+  context.bezierCurveTo(4, -18, 15, -16, 15, -7);
+  context.bezierCurveTo(15, 0, 5, 7, 0, 10);
+  context.fill();
+  context.shadowBlur = 10;
+  context.fillStyle = '#fff0fb';
+  context.beginPath();
+  context.arc(-4, -8, 2.2, 0, Math.PI * 2);
+  context.fill();
   context.restore();
+}
+
+function saveSceneImage() {
+  const frame = document.createElement('canvas');
+  frame.width = Math.round(width * pixelRatio);
+  frame.height = Math.round(height * pixelRatio);
+  const frameContext = frame.getContext('2d');
+  frameContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+  frameContext.fillStyle = '#05070d';
+  frameContext.fillRect(0, 0, width, height);
+  frameContext.drawImage(canvas, 0, 0, width, height);
+  frameContext.save();
+  frameContext.textAlign = 'center';
+  frameContext.fillStyle = '#f7edda';
+  frameContext.shadowColor = 'rgba(255, 142, 207, .35)';
+  frameContext.shadowBlur = 22;
+  frameContext.font = '500 30px Georgia, serif';
+  frameContext.fillText('MERRY CHRISTMAS', width * 0.5, Math.max(48, height * 0.105));
+  frameContext.restore();
+  photos.forEach(function(item) {
+    const image = item.card.querySelector('img');
+    const rect = item.card.getBoundingClientRect();
+    const x = rect.left + rect.width * 0.5;
+    const y = rect.top + rect.height * 0.5;
+    const cardWidth = rect.width;
+    const cardHeight = rect.height;
+    frameContext.save();
+    frameContext.translate(x, y);
+    frameContext.rotate(item.position.tilt * Math.PI / 180);
+    frameContext.fillStyle = '#d3ab64';
+    frameContext.fillRect(-cardWidth * 0.5, -cardHeight * 0.5, cardWidth, cardHeight);
+    frameContext.fillStyle = '#090910';
+    frameContext.fillRect(-cardWidth * 0.5 + 4, -cardHeight * 0.5 + 4, cardWidth - 8, cardHeight - 18);
+    if (image.complete && image.naturalWidth) {
+      const maxWidth = cardWidth - 8;
+      const maxHeight = cardHeight - 18;
+      const fit = Math.min(maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+      const drawWidth = image.naturalWidth * fit;
+      const drawHeight = image.naturalHeight * fit;
+      frameContext.drawImage(image, -drawWidth * 0.5, -cardHeight * 0.5 + 4 + (maxHeight - drawHeight) * 0.5, drawWidth, drawHeight);
+    }
+    frameContext.fillStyle = '#fff0ca';
+    frameContext.beginPath();
+    frameContext.arc(0, -cardHeight * 0.5, 3.4, 0, Math.PI * 2);
+    frameContext.fill();
+    frameContext.restore();
+  });
+  frame.toBlob(function(blob) {
+    if (!blob) { notify('截图没有生成，请重试'); return; }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'winter-memories.png';
+    link.click();
+    setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    notify('圣诞树与照片已保存');
+  }, 'image/png');
 }
 
 function openPhoto(item) {
@@ -446,16 +623,42 @@ cameraButton.addEventListener('click', function() { if (cameraStream) stopCamera
 scatterButton.addEventListener('click', function() { setScattered(!scattered); });
 document.querySelector('#photoClose').addEventListener('click', closePhoto);
 photoBackdrop.addEventListener('click', function(event) { if (event.target === photoBackdrop) closePhoto(); });
-window.addEventListener('keydown', function(event) { if (event.key === 'Escape') closePhoto(); });
+window.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') { closePhoto(); return; }
+  if (event.target.closest && event.target.closest('button')) return;
+  const key = event.key.toLowerCase();
+  if (event.code === 'Space') {
+    event.preventDefault();
+    rotationPaused = !rotationPaused;
+    notify(rotationPaused ? '已暂停树的旋转' : '树继续缓缓旋转');
+  } else if (key === 'f') {
+    yaw = 0;
+    pitch = 0;
+    zoom = 1;
+    notify('视角已复位');
+  } else if (key === 's') {
+    saveSceneImage();
+  } else if (key === 'h') {
+    hudHidden = !hudHidden;
+    scene.classList.toggle('hud-hidden', hudHidden);
+  }
+});
 window.addEventListener('beforeunload', function() { stopCamera(); music.pause(); });
 scene.addEventListener('pointerdown', function(event) {
-  if (event.target !== canvas) return;
-  pointerDown = { x: event.clientX, yaw: yaw };
+  if (event.target !== canvas || event.button !== 0) return;
+  pointerDown = { x: event.clientX, y: event.clientY, yaw: yaw, pitch: pitch };
 });
 scene.addEventListener('pointermove', function(event) {
-  if (pointerDown) yaw = pointerDown.yaw + (event.clientX - pointerDown.x) * .006;
+  if (pointerDown) {
+    yaw = pointerDown.yaw + (event.clientX - pointerDown.x) * .006;
+    pitch = Math.max(-0.62, Math.min(0.62, pointerDown.pitch + (event.clientY - pointerDown.y) * .004));
+  }
 });
 window.addEventListener('pointerup', function() { pointerDown = null; });
+scene.addEventListener('wheel', function(event) {
+  event.preventDefault();
+  zoom = Math.max(0.72, Math.min(1.55, zoom * (event.deltaY < 0 ? 1.07 : 0.935)));
+}, { passive: false });
 music.volume = .48;
 musicToggle.addEventListener('click', async function() {
   try {
