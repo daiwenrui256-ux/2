@@ -563,7 +563,12 @@ function handFrame() {
       cursor.style.top = (y - rect.top) + 'px';
       const gesture = readGesture(hand);
       if (gesture !== lastGesture) {
-        if (gesture === 'open') setScattered(true);
+        if (gesture === 'open') {
+          if (pinchTarget) {
+            openPhoto(pinchTarget);
+            notify('照片已放大');
+          } else setScattered(true);
+        }
         if (gesture === 'fist') setScattered(false);
         lastGesture = gesture;
       }
