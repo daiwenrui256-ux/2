@@ -565,7 +565,9 @@ function handFrame() {
       if (gesture !== lastGesture) {
         if (gesture === 'open') {
           if (pinchTarget) {
+            pinchTarget.card.classList.remove('dragging');
             openPhoto(pinchTarget);
+            pinchTarget = null;
             notify('照片已放大');
           } else setScattered(true);
         }
@@ -583,7 +585,7 @@ function handFrame() {
         }
       } else if (pinchTarget) {
         pinchTarget.card.classList.remove('dragging');
-        pinchTarget = null;
+        if (gesture === 'fist') pinchTarget = null;
       }
     } else {
       cursor.style.display = 'none';
