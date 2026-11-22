@@ -58,6 +58,7 @@ let lastVideoTime = -1;
 let pinchTarget = null;
 let suppressPinchUntilRelease = false;
 let lastGesture = '';
+let handRotation = null;
 let noticeTimer = 0;
 let photoDrag = null;
 
@@ -531,8 +532,13 @@ function onPhotoUp(event) {
 function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 function extended(landmarks, tip, joint) { return landmarks[tip].y < landmarks[joint].y - .025; }
 function readGesture(landmarks) {
-  const up = [extended(landmarks,8,6), extended(landmarks,12,10), extended(landmarks,16,14), extended(landmarks,20,18)].filter(Boolean).length;
+  const indexUp = extended(landmarks, 8, 6);
+  const middleUp = extended(landmarks, 12, 10);
+  const ringUp = extended(landmarks, 16, 14);
+  const pinkyUp = extended(landmarks, 20, 18);
+  const up = [indexUp, middleUp, ringUp, pinkyUp].filter(Boolean).length;
   if (distance(landmarks[4], landmarks[8]) < .065) return 'pinch';
+  if (indexUp && !middleUp && !ringUp && !pinkyUp) return 'point';
   if (up >= 4) return 'open';
   if (up <= 1) return 'fist';
   return 'move';
@@ -583,6 +589,13 @@ function handFrame() {
         lastGesture = 'spread';
         notify('照片已放大');
       } else {
+        if (gesture === 'point' && !pinchTarget) {
+          if (!handRotation) handRotation = { x: x, y: y, yaw: yaw, pitch: pitch };
+          else {
+            yaw = handRotation.yaw + (x - handRotation.x) * .006;
+            pitch = Math.max(-.62, Math.min(.62, handRotation.pitch + (y - handRotation.y) * .004));
+          }
+        } else handRotation = null;
         if (gesture !== lastGesture) {
           if (gesture === 'open') setScattered(true);
           if (gesture === 'fist') setScattered(false);
@@ -605,6 +618,7 @@ function handFrame() {
     } else {
       cursor.style.display = 'none';
       if (pinchTarget) { pinchTarget.card.classList.remove('dragging'); pinchTarget = null; }
+      handRotation = null;
       lastGesture = '';
     }
   }
@@ -634,7 +648,7 @@ async function startCamera() {
     cameraButton.classList.add('is-on');
     cameraButton.disabled = false;
     cameraLabel.textContent = '关闭手势互动';
-    notify('手掌张开散开 · 握拳聚拢 · 捏合照片，再张开两指放大，再捏合收起');
+    notify('单指移动旋转圣诞树 · 两指捏合选择照片，张开两指放大，再捏合收起');
     handRequest = requestAnimationFrame(handFrame);
   } catch (error) {
     stopCamera();
@@ -665,6 +679,7 @@ function stopCamera() {
   cursor.style.display = 'none';
   pinchTarget = null;
   suppressPinchUntilRelease = false;
+  handRotation = null;
   lastGesture = '';
   cameraButton.classList.remove('is-on');
   cameraLabel.textContent = '开启手势互动';
